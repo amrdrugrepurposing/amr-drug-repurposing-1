@@ -194,8 +194,9 @@ class ClaimedJob:
 
 
 def claim(conn, worker_id: str, lease_seconds: int, *, limit: int = 1,
-          run_id: str | None = None) -> list[ClaimedJob]:
-    """Atomically take up to `limit` QUEUED jobs from RUNNING runs."""
+          run_id: str | None = None, job_ids: list[int] | None = None) -> list[ClaimedJob]:
+    """Atomically take up to `limit` QUEUED jobs from RUNNING runs, optionally only
+    among `job_ids` (a benchmark that wants particular jobs claims them the same way)."""
     rows = conn.execute(
         """update docking.jobs j set status = 'RUNNING', worker_id = %(w)s,
                   attempt_count = j.attempt_count + 1, started_at = now(), heartbeat_at = now(),
@@ -207,12 +208,13 @@ def claim(conn, worker_id: str, lease_seconds: int, *, limit: int = 1,
                  where q.status = 'QUEUED'
                    and (q.not_before is null or q.not_before <= now())
                    and (%(run)s::text is null or q.run_id = %(run)s)
+                   and (%(ids)s::bigint[] is null or q.id = any(%(ids)s::bigint[]))
                  order by q.priority, q.id
                  limit %(n)s
                  for update of q skip locked)
         returning j.id, j.run_id, j.ligand_id, j.target_id, j.config_hash,
                   j.attempt_count, j.max_attempts""",
-        {"w": worker_id, "lease": lease_seconds, "n": limit, "run": run_id}).fetchall()
+        {"w": worker_id, "lease": lease_seconds, "n": limit, "run": run_id, "ids": job_ids}).fetchall()
     return [ClaimedJob(*r) for r in rows]
 
 

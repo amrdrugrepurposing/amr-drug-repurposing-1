@@ -63,3 +63,6 @@ exports/
 
 # Batch docking artifact cache (the shared copy lives in Supabase Storage).
 data/docking/
+
+# Vercel CLI project link (vercel link).
+.vercel
